@@ -1,3 +1,5 @@
+### This is my submission for the project described below. It currently doesn't have passing performance. I need to find the error in the implementation. I suspect it has to do with transformations. 
+
 # Overview
 This repository contains all the code needed to complete the final project for the Localization course in Udacity's Self-Driving Car Nanodegree.
 
