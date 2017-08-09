@@ -72,13 +72,14 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
   for (int i=0; i<particles.size(); i++) {
     
     // extract variables for readability
-    x_0 = particles[i].x;
-    y_0 = particles[i].y;
-    theta_0 = particles[i].theta;
+    x_0 = particles[i].x; cout << "x = " << x_0 << "\n\n";
+    y_0 = particles[i].y; cout << "y = " << y_0 << "\n\n";
+    theta_0 = particles[i].theta; cout << "theta = " << theta_0 << "\n\n";
+    
     
     //// Prediction equations ////
     // Motion prediction equations for yaw_rate ~zero
-    if (fabs(yaw_rate) < .0001) {
+    if (fabs(yaw_rate) < .001) {
       
       x_f =  x_0 + velocity * cos(theta_0) * delta_t;
       y_f = y_0 + velocity * sin(theta_0) * delta_t;
@@ -145,10 +146,9 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
     observations[i].id = predicted[min_pos].id;
     
     //cout << "id of nearest observation = " << observations[i].id << "\n\n";
+    
   }
   
-  // TODO: SetAssociations using the method setAssociations
-  //???????????????????????????????
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -200,6 +200,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
   double ydiff;
   double P;
   
+  // Clear weights variable that is about to be filled
+  weights.clear();
+  
   // Loop through each particle
   for (int i=0; i<particles.size(); i++) {
     
@@ -239,8 +242,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     for (int k=0; k < observations.size(); k++) {
       
       // Equations for 2D transformation rotation and translation
-      obs_map_coord.x = px + observations[k].x * cos(pth) + observations[k].y * sin(pth);
-      obs_map_coord.y = py - observations[k].x * sin(pth) + observations[k].y * cos(pth);
+      obs_map_coord.x = px + observations[k].x * cos(pth) - observations[k].y * sin(pth);
+      obs_map_coord.y = py + observations[k].x * sin(pth) + observations[k].y * cos(pth);
       
       // Copy ids from observations to transformed
       obs_map_coord.id = observations[k].id;
@@ -255,6 +258,11 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     // Re-initialize particle weight so as not to carry previous probabilities from resample
     particles[i].weight = 1.0;
     
+    // Declare constants for Multi-variate Gaussian prob
+    const double sig_y2 = 2*std_y*std_y;
+    const double sig_x2 = 2*std_x*std_x;
+    const double pi_sig2 = 2*M_PI*std_x*std_y;
+    
     //// Loop through observations to do Mulit-variate Gaussian probability ////
     for (int k=0; k < observations_map_coord.size(); k++) {
       
@@ -264,7 +272,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       //cout << "observation id = " << o_map.id << "\n\n";
       
       // Store observation id into associations - Not sure if or how to use this, might figure it out later
-      particles[i].associations.push_back(o_map.id);
+      //particles[i].associations.push_back(o_map.id);
       
       // Loop through landmarks found to be in range
       for (int j=0; j < predicted_landmarks.size(); j++) {
@@ -276,9 +284,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         if (o_map.id == pred_lm.id) {
           
           // Calculate Multi-variate Gaussian probability of current observation being correct
-          xdiff = pow((o_map.x - pred_lm.x), 2) / (2*std_x*std_x);
-          ydiff = pow((o_map.y - pred_lm.y), 2) / (2*std_y*std_y);
-          P = exp(-(xdiff + ydiff)) / (2*M_PI*std_x*std_y);
+          xdiff = pow((o_map.x - pred_lm.x), 2) / (sig_x2);
+          ydiff = pow((o_map.y - pred_lm.y), 2) / (sig_y2);
+          P = exp(-(xdiff + ydiff)) / (pi_sig2);
           
           //cout << "observation probability = " << P << "\n\n";
           
@@ -291,13 +299,29 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       }
       
     }
+    
+    // Build weights vector for use in resampling
+    weights.push_back(particles[i].weight);
+    
+    // Declare normalization variables
+    float eps = .001;
+    double sum = accumulate(weights.begin(), weights.end(), 0);
+    
+    // Check for and correct possible zero-division
+    if (fabs(sum) < eps) sum = pow(-1, signbit(sum)) * eps;
+
+    // Normalize importance weights
+    for (int n=0; n < weights.size(); n++) {
+      weights[n] /= sum; //cout << "normalized weight[i] = " << weights[n] << "\n\n";
+    }
+    
     //cout << "particle[" << i << "] weight after update= " << particles[i].weight << "\n\n";
   }
 
 }
 
 void ParticleFilter::resample() {
-	// TODO: Resample particles with replacement with probability proportional to their weight. 
+	// TODO: Resample particles with replacement with probability proportional to their weight.
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
   
@@ -305,19 +329,11 @@ void ParticleFilter::resample() {
   
   //// Determine the max weight of all particles for use in gaussian noise ////
   // Declare and initialize max weight
-  double max_weight = -1;
-  
-  // Loop through particles to find max weight
-  for (int w = 0; w < num_particles; w++) {
-    
-    if (particles[w].weight > max_weight) {
-      max_weight = particles[w].weight;
-    }
-  }
+  double max_weight = *max_element(weights.begin(), weights.end());
 
   // Normal integer distribution for index of particles
-  std::uniform_int_distribution<int> index_dist(0, num_particles-1);
-  int index = index_dist(gen);
+  std::uniform_int_distribution<unsigned int> index_dist(0, num_particles-1);
+  unsigned int index = index_dist(gen);
 
   // Delcare storage variable for newly sampled particles
   std::vector<Particle> resampled_particles;
@@ -335,9 +351,9 @@ void ParticleFilter::resample() {
     
     //cout << "beta[" << r << "] = " << beta << "\n\n";
 
-    while ( particles[index].weight < beta ) {
+    while ( weights[index] < beta ) {
       
-      beta -= particles[index].weight;
+      beta -= weights[index];
       index = (index + 1) % num_particles;
     }
     
