@@ -1,4 +1,14 @@
-### This is my submission for the project described below. It currently doesn't have passing performance. I need to find the error in the implementation. I suspect it has to do with transformations. 
+# Korda's Particle Filter Project for Udacity Self-Driving Car Nanodegree
+
+[YouTube Video](https://youtu.be/YjptuXYY0yI)
+
+[![alt text](https://img.youtube.com/vi/YjptuXYY0yI/0.jpg)](https://youtu.be/YjptuXYY0yI)
+
+
+### This is my submission for the project described below. I implemented the particle filter for localization of a self-driving car using Monte Carlo Localization. It was a tough project and I learned a lot. One big educational point was variable scope in c++. I was declaring variables outside of loops thinking that would make the code more efficient but my variables were not reinitializing because of their scope, so the vectors began to accumulate old data and buggered up the performance. Once I fixed that it worked like a charm. 
+
+##A quick overview of what a particle filter does:
+A particle filter is basically a whole lot of randomized simulated robots that get sprayed over a map. Each robot gets weights added based on how close to the real robot it is from previous knowledge. The simulated robots survive an extinction event with a probability proportional to their weight; this is called resampling. Eventually only the strongest (closest) survive. :-)
 
 # Overview
 This repository contains all the code needed to complete the final project for the Localization course in Udacity's Self-Driving Car Nanodegree.
