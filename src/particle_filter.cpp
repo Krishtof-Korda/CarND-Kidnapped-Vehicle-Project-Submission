@@ -3,6 +3,8 @@
  *
  *  Created on: Dec 12, 2016
  *      Author: Tiffany Huang
+ *  Modified on: 09 Aug 2017
+ *      Author: Krishtof Korda
  */
 
 #include <random>
@@ -25,7 +27,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
   
-  num_particles = 10;
+  num_particles = 20;
   
   // Distribution variables for adding random noise
   normal_distribution<double> x_dist(x, std[0]);
@@ -51,8 +53,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
   // Set initialization as complete
   is_initialized = true;
   
-  cout << "number of particles after initialization = " << particles.size() << "\n\n";
-
+  cout << "||||||||number of particles after initialization = " << particles.size() << "||||||||\n\n";
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
@@ -60,6 +61,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	// NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
+  
+  cout << "||||||||Predicting particle positions after one time step||||||||\n\n";
   
   // declare readability variables
   double x_0;
@@ -72,9 +75,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
   for (int i=0; i<particles.size(); i++) {
     
     // extract variables for readability
-    x_0 = particles[i].x; cout << "x = " << x_0 << "\n\n";
-    y_0 = particles[i].y; cout << "y = " << y_0 << "\n\n";
-    theta_0 = particles[i].theta; cout << "theta = " << theta_0 << "\n\n";
+    x_0 = particles[i].x; //cout << "x = " << x_0 << "\n\n";
+    y_0 = particles[i].y; //cout << "y = " << y_0 << "\n\n";
+    theta_0 = particles[i].theta; //cout << "theta = " << theta_0 << "\n\n";
     
     
     //// Prediction equations ////
@@ -103,9 +106,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
     particles[i].x = x_f_dist(gen);
     particles[i].y = y_f_dist(gen);
     particles[i].theta = theta_f_dist(gen);
-    
   }
-
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
@@ -131,8 +132,6 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
       // Calculate distance between current observation  and landmark
       dist_i = dist(predicted[j].x, predicted[j].y, observations[i].x, observations[i].y);
       
-      //cout << "dist_i = " << dist_i << "\n\n";
-      
       // Store distance of jth landmark to ith observation
       distances.push_back(dist_i);
     }
@@ -140,15 +139,9 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
     // Find the index of the min distance for current observation and landmark
     min_pos = min_element(distances.begin(), distances.end()) - distances.begin();
     
-    //cout << "min_pos = " << min_pos << "\n\n";
-    
     // Assign closest landmark id to observation
     observations[i].id = predicted[min_pos].id;
-    
-    //cout << "id of nearest observation = " << observations[i].id << "\n\n";
-    
   }
-  
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -163,6 +156,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
+  
+  cout << "||||||||Updating particle weights||||||||\n\n";
   
   // Pull standard devation values
   const double std_x = std_landmark[0];
@@ -179,16 +174,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
   double id_f;
   double dist_j;
   
-  // Declare Vector of predicted landmarks
-  std::vector<LandmarkObs> predicted_landmarks;
-  
-  // Declare landmark object to store in vector of in range landmarks
-  LandmarkObs in_range;
-  
-  // Declare vector and variable containers for tranformations
-  std::vector<LandmarkObs> observations_map_coord;
-  LandmarkObs obs_map_coord;
-  
   // Declare landmark object variable for transformed observation
   LandmarkObs o_map;
   
@@ -203,6 +188,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
   // Clear weights variable that is about to be filled
   weights.clear();
   
+  // Initialize weight sum variable for normalization
+  double weight_sum = 0.0;
+  
   // Loop through each particle
   for (int i=0; i<particles.size(); i++) {
     
@@ -210,8 +198,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     px = particles[i].x;
     py = particles[i].y;
     pth = particles[i].theta;
-    
-    //cout << "particle[" << i << "] weight before update= " << particles[i].weight << "\n\n";
+
+    // Declare Vector of predicted landmarks
+    std::vector<LandmarkObs> predicted_landmarks;
     
     // Loop through landmarks to find landmarks in range of each particle.
     for (int j=0; j<map_landmarks.landmark_list.size(); j++) {
@@ -227,6 +216,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       // If landmark is in range append to vector of predicted landmarks
       if (fabs(dist_j) <= sensor_range) {
         
+        // Declare landmark object to store in vector of in range landmarks
+        LandmarkObs in_range;
+        
         // Id and position of matching landmark in the map.
         in_range.id = id_f;
         in_range.x = x_f;
@@ -238,6 +230,10 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     }
     
     ///// Transform observations into map coordinates////
+    // Declare vector and variable containers for tranformations
+    std::vector<LandmarkObs> observations_map_coord;
+    LandmarkObs obs_map_coord;
+    
     // Loop through observations to be transformed
     for (int k=0; k < observations.size(); k++) {
       
@@ -268,12 +264,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       
       // Pull current observation, k
       o_map = observations_map_coord[k];
-      
-      //cout << "observation id = " << o_map.id << "\n\n";
-      
-      // Store observation id into associations - Not sure if or how to use this, might figure it out later
-      //particles[i].associations.push_back(o_map.id);
-      
+
       // Loop through landmarks found to be in range
       for (int j=0; j < predicted_landmarks.size(); j++) {
         
@@ -287,37 +278,24 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
           xdiff = pow((o_map.x - pred_lm.x), 2) / (sig_x2);
           ydiff = pow((o_map.y - pred_lm.y), 2) / (sig_y2);
           P = exp(-(xdiff + ydiff)) / (pi_sig2);
-          
-          //cout << "observation probability = " << P << "\n\n";
-          
+       
           // Multiply current probability with new probability and assign to particle weight
           particles[i].weight *= P;
-          
-          //cout << "particle[" << i << "] weight = " << particles[i].weight << "\n\n";
         }
-        
       }
-      
     }
     
     // Build weights vector for use in resampling
     weights.push_back(particles[i].weight);
     
-    // Declare normalization variables
-    float eps = .001;
-    double sum = accumulate(weights.begin(), weights.end(), 0);
-    
-    // Check for and correct possible zero-division
-    if (fabs(sum) < eps) sum = pow(-1, signbit(sum)) * eps;
-
-    // Normalize importance weights
-    for (int n=0; n < weights.size(); n++) {
-      weights[n] /= sum; //cout << "normalized weight[i] = " << weights[n] << "\n\n";
-    }
-    
-    //cout << "particle[" << i << "] weight after update= " << particles[i].weight << "\n\n";
+    // Accumulate weight sum for normalization
+    weight_sum += particles[i].weight;
   }
-
+  
+  //Normalize weights to a sum of 1
+  for (int n=0; n<weights.size(); n++) {
+    weights[n] /= weight_sum;
+  }
 }
 
 void ParticleFilter::resample() {
@@ -325,7 +303,7 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
   
-  cout << "Resampling particles based on weight|||||||||||||||||||||||||||||||||\n\n";
+  cout << "||||||||Resampling particles based on weight||||||||\n\n";
   
   //// Determine the max weight of all particles for use in gaussian noise ////
   // Declare and initialize max weight
@@ -348,8 +326,6 @@ void ParticleFilter::resample() {
   for (int r=0; r < num_particles; r++) {
     
     beta += weight_dist(gen);
-    
-    //cout << "beta[" << r << "] = " << beta << "\n\n";
 
     while ( weights[index] < beta ) {
       
@@ -359,8 +335,6 @@ void ParticleFilter::resample() {
     
     // Add selected sample to new particles
     resampled_particles.push_back(particles[index]);
-    
-    //cout << "particle[" << r << "] weight after resample= " << particles[index].weight << "\n\n";
   }
   
   // Assign new set of particles to particles vector
